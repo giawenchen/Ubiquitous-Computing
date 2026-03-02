@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrushBeat — Motion-Driven Music</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+
+  :root {
+    --bg:      #0a0a0f;
+    --surface: #12121a;
+    --border:  #1e1e2e;
+    --accent:  #7ee8a2;
+    --accent2: #f5a623;
+    --accent3: #e8507e;
+    --text:    #e8e8f0;
+    --muted:   #5a5a7a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+    padding: 48px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* ── Header ── */
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 42px;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, #7ee8a2, #a8edca, #f5a623);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .tagline {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── Status card ── */
+  .status-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .status-card.state-still  { background: #0e0e16; border-color: #1e1e2e; }
+  .status-card.state-quiet  { background: #0a1812; border-color: #1a3020; }
+  .status-card.state-medium { background: #16120a; border-color: #2e2010; }
+  .status-card.state-loud   { background: #160a0e; border-color: #2e1018; }
+
+  .state-label {
+    font-family: 'DM Serif Display', serif;
+    font-size: 52px;
+    font-style: italic;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .state-still  .state-label { color: var(--muted); }
+  .state-quiet  .state-label { color: #7ee8a2; }
+  .state-medium .state-label { color: #f5a623; }
+  .state-loud   .state-label { color: #e8507e; }
+
+  .state-desc {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: -12px;
+  }
+
+  /* Vol bar */
+  .vol-header { display: flex; justify-content: space-between; align-items: baseline; }
+  .vol-label  { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+  .vol-number { font-size: 28px; font-weight: 300; letter-spacing: -1px; }
+  .state-still  .vol-number { color: var(--muted); }
+  .state-quiet  .vol-number { color: #7ee8a2; }
+  .state-medium .vol-number { color: #f5a623; }
+  .state-loud   .vol-number { color: #e8507e; }
+
+  .vol-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+  .vol-fill  { height: 100%; border-radius: 3px; width: 0%; }
+  .state-still  .vol-fill { background: var(--muted); }
+  .state-quiet  .vol-fill { background: linear-gradient(90deg, #4aaa7a, #7ee8a2); }
+  .state-medium .vol-fill { background: linear-gradient(90deg, #c07810, #f5a623); }
+  .state-loud   .vol-fill { background: linear-gradient(90deg, #b03050, #e8507e); }
+
+  /* Waveform */
+  .waveform { display: flex; align-items: center; gap: 3px; height: 48px; }
+  .wave-bar { flex: 1; border-radius: 2px; min-height: 3px; }
+  .state-still  .wave-bar { background: #2a2a3a; }
+  .state-quiet  .wave-bar { background: rgba(126,232,162,0.5); }
+  .state-medium .wave-bar { background: rgba(245,166,35,0.6); }
+  .state-loud   .wave-bar { background: rgba(232,80,126,0.7); }
+
+  /* Metrics */
+  .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .metric {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+  }
+  .metric-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  .metric-value { font-size: 20px; font-weight: 400; letter-spacing: -0.5px; color: var(--text); margin-top: 4px; }
+  .metric-unit  { font-size: 9px; color: var(--muted); }
+
+  /* Song */
+  .song-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .song-icon {
+    width: 44px; height: 44px; border-radius: 8px;
+    background: linear-gradient(135deg, #1a2a1a, #2a4a2a);
+    border: 1px solid #2a3a2a;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+    animation: spin-slow 8s linear infinite;
+    animation-play-state: paused;
+  }
+  .song-icon.playing { animation-play-state: running; }
+  @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .song-title  { font-family: 'DM Serif Display', serif; font-size: 16px; color: var(--text); }
+  .song-artist { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .song-vol-indicator { font-size: 11px; letter-spacing: 1px; color: var(--muted); text-align: right; margin-left: auto; }
+  .song-vol-indicator span { display: block; font-size: 18px; font-weight: 300; color: var(--text); }
+
+  /* Controls */
+  .controls-label {
+    font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pulse-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    animation: pulse 1.5s ease-in-out infinite; flex-shrink: 0;
+  }
+  @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.4; transform:scale(0.7); } }
+
+  .mode-buttons { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .mode-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 8px; color: var(--muted);
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    cursor: pointer; text-align: center; transition: all 0.2s ease; text-transform: uppercase;
+  }
+  .mode-btn:hover   { border-color: var(--accent); color: var(--accent); }
+  .mode-btn.active  { background: rgba(126,232,162,0.08); border-color: var(--accent); color: var(--accent); }
+
+  .countdown-track {
+    height: 2px; background: var(--border); border-radius: 1px;
+    overflow: hidden; margin-top: 10px;
+  }
+  .countdown-fill { height: 100%; background: var(--muted); width: 100%; }
+
+  /* Architecture */
+  .concept {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+  }
+  .concept-title { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .concept-flow  { display: flex; align-items: center; gap: 8px; }
+  .flow-node {
+    flex: 1; background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 8px; text-align: center;
+    font-size: 10px; letter-spacing: 1px; color: var(--muted); text-transform: uppercase;
+  }
+  .flow-node .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .flow-arrow { color: var(--muted); font-size: 14px; flex-shrink: 0; }
+
+  .footer {
+    font-size: 10px; letter-spacing: 2px; color: var(--muted);
+    text-align: center; text-transform: uppercase; padding-bottom: 24px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div>
+    <div class="logo">BrushBeat</div>
+    <div class="tagline">Motion-Driven Music · Wristband Prototype</div>
+  </div>
+
+  <div class="status-card state-still" id="statusCard">
+    <div>
+      <div class="state-label" id="stateLabel">Still</div>
+      <div class="state-desc" id="stateDesc">No motion detected — music silent</div>
+    </div>
+    <div>
+      <div class="vol-header">
+        <div class="vol-label">Volume Output</div>
+        <div class="vol-number" id="volNumber">0%</div>
+      </div>
+      <div class="vol-track"><div class="vol-fill" id="volFill"></div></div>
+    </div>
+    <div class="waveform" id="waveform"></div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Acceleration</div>
+      <div class="metric-value" id="metricRms">0.000</div>
+      <div class="metric-unit">g (dynamic)</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Frequency</div>
+      <div class="metric-value" id="metricFreq">0.0</div>
+      <div class="metric-unit">Hz</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Stroke Rate</div>
+      <div class="metric-value" id="metricStrokes">0</div>
+      <div class="metric-unit">per min</div>
+    </div>
+  </div>
+
+  <div class="song-card">
+    <div class="song-icon" id="songIcon">◎</div>
+    <div>
+      <div class="song-title">Intro</div>
+      <div class="song-artist">The xx · 2009</div>
+    </div>
+    <div class="song-vol-indicator">
+      SPEAKER VOL
+      <span id="speakerVol">—</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="controls-label"><div class="pulse-dot"></div>Simulate Motion — auto-cycles every 5s</div>
+    <div class="mode-buttons">
+      <button class="mode-btn active" onclick="setMode('still')"  id="btn-still" >Still</button>
+      <button class="mode-btn"        onclick="setMode('gentle')" id="btn-gentle">Gentle</button>
+      <button class="mode-btn"        onclick="setMode('medium')" id="btn-medium">Medium</button>
+      <button class="mode-btn"        onclick="setMode('hard')"   id="btn-hard"  >Hard</button>
+    </div>
+    <div class="countdown-track"><div class="countdown-fill" id="countdown"></div></div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-title">System Architecture</div>
+    <div class="concept-flow">
+      <div class="flow-node"><span class="icon">⌚</span>Wristband<br>IMU Sensor</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node"><span class="icon">📡</span>WiFi<br>HTTP API</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node"><span class="icon">💻</span>Laptop<br>Controller</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node"><span class="icon">🔊</span>Speaker<br>Volume</div>
+    </div>
+  </div>
+
+  <div class="footer">INFO 5304 · Wrist-Controlled Music Interface</div>
+</div>
+
+<script>
+const MODES = {
+  still:  { volMin: 0,    volMax: 0,    freq: 0.0, label: 'Still',  desc: 'No motion detected — music silent',         cls: 'state-still'  },
+  gentle: { volMin: 0.05, volMax: 0.35, freq: 1.4, label: 'Gentle', desc: 'Slow strokes — music whispers softly',      cls: 'state-quiet'  },
+  medium: { volMin: 0.40, volMax: 0.65, freq: 2.5, label: 'Medium', desc: 'Steady rhythm — music fills the room',      cls: 'state-medium' },
+  hard:   { volMin: 0.75, volMax: 1.00, freq: 3.8, label: 'Hard',   desc: 'Vigorous brushing — music at full volume',  cls: 'state-loud'   },
+};
+
+const CYCLE    = ['still', 'gentle', 'medium', 'hard'];
+const STATE_DUR = 5000;
+let cycleIdx   = 0;
+let currentMode = 'still';
+let lastAdvance = performance.now();
+let wavePhase  = 0;
+const NUM_BARS = 32;
+
+// Build waveform
+const waveform = document.getElementById('waveform');
+for (let i = 0; i < NUM_BARS; i++) {
+  const b = document.createElement('div');
+  b.className = 'wave-bar';
+  b.style.height = '3px';
+  waveform.appendChild(b);
+}
+
+// Disable CSS transitions for snap feel
+document.getElementById('volFill').style.transition    = 'none';
+document.getElementById('statusCard').style.transition = 'none';
+
+function setMode(mode) {
+  currentMode = mode;
+  cycleIdx    = CYCLE.indexOf(mode);
+  lastAdvance = performance.now();
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + mode).classList.add('active');
+  document.getElementById('statusCard').className = 'status-card ' + MODES[mode].cls;
+  document.getElementById('stateLabel').textContent = MODES[mode].label;
+  document.getElementById('stateDesc').textContent  = MODES[mode].desc;
+}
+
+function getDynamicVolume(mode, now) {
+  if (mode.volMin === 0 && mode.volMax === 0) return 0;
+  const range = mode.volMax - mode.volMin;
+  const mid   = mode.volMin + range / 2;
+  const slow  = Math.sin(now * 0.0008) * range * 0.45;
+  const fast  = Math.sin(now * 0.003 + 1.3) * range * 0.12;
+  const micro = (Math.random() - 0.5) * range * 0.06;
+  return Math.max(mode.volMin, Math.min(mode.volMax, mid + slow + fast + micro));
+}
+
+function tick(now) {
+  const mode    = MODES[currentMode];
+  const elapsed = now - lastAdvance;
+
+  // Auto-advance
+  if (elapsed >= STATE_DUR) {
+    cycleIdx    = (cycleIdx + 1) % CYCLE.length;
+    currentMode = CYCLE[cycleIdx];
+    lastAdvance = now;
+    setMode(currentMode);
+  }
+
+  // Countdown bar
+  document.getElementById('countdown').style.width =
+    (100 - (elapsed / STATE_DUR) * 100).toFixed(1) + '%';
+
+  const vol = getDynamicVolume(mode, now);
+  const pct = Math.round(vol * 100);
+
+  document.getElementById('volNumber').textContent  = pct + '%';
+  document.getElementById('volFill').style.width    = pct + '%';
+  document.getElementById('speakerVol').textContent = pct > 0 ? pct + '%' : '—';
+
+  // Metrics
+  const rmsVal  = vol * 0.50;
+  const freqVal = mode.freq + (Math.random() - 0.5) * 0.12;
+  document.getElementById('metricRms').textContent     = rmsVal.toFixed(3);
+  document.getElementById('metricFreq').textContent    = Math.max(0, freqVal).toFixed(1);
+  document.getElementById('metricStrokes').textContent = Math.round(Math.max(0, freqVal) * 60);
+
+  // Record spin
+  const icon = document.getElementById('songIcon');
+  if (pct > 2) {
+    icon.classList.add('playing');
+    icon.style.animationDuration = (mode.freq > 0.1 ? (8 / mode.freq).toFixed(1) : '999') + 's';
+  } else {
+    icon.classList.remove('playing');
+  }
+
+  // Waveform — speed matches freq, flat when still
+  wavePhase += mode.freq * 0.10 + 0.01;
+  const bars = waveform.children;
+  for (let i = 0; i < NUM_BARS; i++) {
+    let h;
+    if (currentMode === 'still') {
+      h = 2 + Math.random() * 1.5;
+    } else {
+      const t = i / NUM_BARS;
+      const wave = Math.sin(t * Math.PI * 4 + wavePhase) * 0.55
+                 + Math.sin(t * Math.PI * 7 + wavePhase * 1.3) * 0.30
+                 + Math.sin(t * Math.PI * 2 + wavePhase * 0.6) * 0.15;
+      h = Math.max(2, ((wave + (Math.random() - 0.5) * 0.2 + 1) / 2) * 44 * vol);
+    }
+    bars[i].style.height = h + 'px';
+  }
+
+  requestAnimationFrame(tick);
+}
+
+setMode('still');
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
